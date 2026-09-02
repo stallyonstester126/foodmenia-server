@@ -5,11 +5,11 @@ dotenv.config();
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: Number(process.env.PORT) || 5000,
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
+  CLIENT_URL: process.env.CLIENT_URL || "https://foodmenia-client-xkie-pi.vercel.app",
   ADMIN_URL: process.env.ADMIN_URL || "http://localhost:3001",
   ALLOWED_ORIGINS: (
     process.env.ALLOWED_ORIGINS ||
-    "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+    "http://localhost:3000,http://localhost:3001,http://localhost:3002,https://foodmenia-client-xkie-pi.vercel.app,https://foodmenia-rider.vercel.app,https://foodmenia-admin.vercel.app"
   )
     .split(",")
     .map((o) => o.trim()),

@@ -44,7 +44,12 @@ app.use(hpp());
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || env.ALLOWED_ORIGINS.includes(origin) || env.NODE_ENV === "development") {
+      if (
+        !origin ||
+        env.ALLOWED_ORIGINS.includes(origin) ||
+        origin.endsWith(".vercel.app") ||
+        env.NODE_ENV === "development"
+      ) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked for origin ${origin}`));

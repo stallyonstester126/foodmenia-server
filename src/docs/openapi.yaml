@@ -4,6 +4,8 @@ info:
   description: Production-grade REST & Real-Time API for Foodmenia food delivery application.
   version: 1.0.0
 servers:
+  - url: https://testing-production-1105.up.railway.app/api/v1
+    description: Production Railway Server
   - url: http://localhost:5000/api/v1
     description: Local Development Server
 tags:
