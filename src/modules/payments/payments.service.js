@@ -185,7 +185,7 @@ export class PaymentsService {
       }
     }
 
-    if (hasRealStripeKey()) {
+    if (hasRealStripeKey() && paymentMethod.provider_payment_method_id !== "pm_mock") {
       try {
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
