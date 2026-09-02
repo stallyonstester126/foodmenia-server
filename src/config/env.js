@@ -40,4 +40,9 @@ export const env = {
     SENDER_NAME: process.env.EMAIL_SENDER_NAME || process.env.BREVO_SENDER_NAME || "FoodMenia",
     SENDER_EMAIL: process.env.EMAIL_SENDER_ADDRESS || process.env.BREVO_SENDER_EMAIL || "stallyons.tester125@gmail.com",
   },
+  CLOUDINARY: {
+    CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
+    API_KEY: process.env.CLOUDINARY_API_KEY || "",
+    API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
+  },
 };
