@@ -1,0 +1,44 @@
+# Environment variables & secrets (CRITICAL for GitHub Push Protection)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.env
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs & Runtime data
+logs/
+*.log
+logs
+*.log.*
+pid
+*.pid
+*.seed
+*.pid.lock
+
+# Test Coverage
+coverage/
+.nyc_output/
+
+# Temporary / OS files
+.DS_Store
+Thumbs.db
+tmp/
+temp/
+
+# IDE / Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build & Dist
+dist/
+build/

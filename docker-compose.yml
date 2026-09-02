@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: foodmenia_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: foodmenia_user
+      DB_PASS: foodmenia_password
+      DB_NAME: foodmenia
+      JWT_SECRET: foodmenia_prod_secret_key_2026
+      JWT_EXPIRY: 7d
+      JWT_REFRESH_SECRET: foodmenia_prod_refresh_secret_key_2026
+      JWT_REFRESH_EXPIRY: 30d
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - foodmenia-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: foodmenia_mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: foodmenia
+      MYSQL_USER: foodmenia_user
+      MYSQL_PASSWORD: foodmenia_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - foodmenia-network
+
+volumes:
+  mysql_data:
+
+networks:
+  foodmenia-network:
+    driver: bridge

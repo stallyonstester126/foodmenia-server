@@ -1,0 +1,336 @@
+openapi: 3.0.3
+info:
+  title: Foodmenia API
+  description: Production-grade REST & Real-Time API for Foodmenia food delivery application.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local Development Server
+tags:
+  - name: Auth
+    description: User authentication, JWT issuance, refresh token rotation, password reset
+  - name: Users & Profile
+    description: Profile management and address book
+  - name: Settings
+    description: User preferences and notification settings
+  - name: Restaurants & Cuisines
+    description: Restaurant catalog and cuisine filters
+  - name: Menu Items
+    description: Product details, add-on groups, and upsell recommendations
+  - name: Favorites
+    description: Wishlist and favorited restaurants/items
+  - name: Cart
+    description: Server-calculated shopping cart with add-on snapshots
+  - name: Checkout & Vouchers
+    description: Order breakdown summary, voucher redemption, payment methods
+  - name: Payments (Stripe)
+    description: Stripe customer creation, setup intents, saved cards, webhook processing
+  - name: Orders & Tracking
+    description: Atomic order placement (idempotent), status tracking, reordering, in-app messaging
+  - name: Admin
+    description: Administrative and restaurant owner endpoints (Requires role admin or restaurant_owner)
+  - name: RestaurantOwner
+    description: Self-service onboarding and management for restaurant owners (Requires role restaurant_owner)
+  - name: Uploads
+    description: Image uploads to Cloudinary storage with rate-limiting and validation
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, example: "John Doe" }
+                email: { type: string, example: "john@example.com" }
+                password: { type: string, example: "Secret123" }
+                phone: { type: string, example: "+923001234567" }
+      responses:
+        201:
+          description: User registered successfully
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user & issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: "john@example.com" }
+                password: { type: string, example: "Secret123" }
+      responses:
+        200:
+          description: Login successful
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Rotate and issue new access & refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        200:
+          description: New tokens issued
+
+  /auth/logout-all:
+    post:
+      tags: [Auth]
+      summary: Revoke all active sessions for authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Logged out from all devices
+
+  /payments/setup-intent:
+    post:
+      tags: [Payments (Stripe)]
+      summary: Create Stripe SetupIntent for frontend card collection
+      security:
+        - bearerAuth: []
+      responses:
+        201:
+          description: SetupIntent created with client_secret
+
+  /payments/methods:
+    post:
+      tags: [Payments (Stripe)]
+      summary: Save confirmed Stripe PaymentMethod
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_method_id]
+              properties:
+                payment_method_id: { type: string, example: "pm_card_visa" }
+                is_default: { type: boolean, default: false }
+      responses:
+        201:
+          description: Method attached and saved
+    get:
+      tags: [Payments (Stripe)]
+      summary: List user's saved payment methods
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Saved payment methods list
+
+  /orders:
+    post:
+      tags: [Orders & Tracking]
+      summary: Place order atomically (Protected with Idempotency-Key)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                address_id: { type: integer }
+                payment_method_id: { type: integer }
+                voucher_code: { type: string }
+                delivery_instructions: { type: string }
+      responses:
+        201:
+          description: Order created successfully
+
+  /admin/restaurants:
+    post:
+      tags: [Admin]
+      summary: Create new restaurant (Requires role: admin or restaurant_owner)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                address: { type: string }
+                price_tier: { type: string, enum: ["$", "$$", "$$$"] }
+      responses:
+        201:
+          description: Restaurant created
+
+  /admin/orders/{id}/refund:
+    post:
+      tags: [Admin]
+      summary: Issue Stripe refund for order (Requires role: admin, Idempotent)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount: { type: number }
+                reason: { type: string }
+      responses:
+        200:
+          description: Refund processed
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password for current authenticated user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, example: "Password123!" }
+                newPassword: { type: string, example: "NewPassword123!" }
+      responses:
+        200:
+          description: Password updated successfully
+        401:
+          description: Incorrect current password or unauthorized
+
+  /vouchers:
+    get:
+      tags: [Checkout & Vouchers]
+      summary: Get active, valid vouchers available for current user
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Active vouchers retrieved successfully
+
+  /restaurants:
+    get:
+      tags: [Restaurants & Cuisines]
+      summary: List restaurants and shops with optional filtering
+      parameters:
+        - name: cuisine
+          in: query
+          required: false
+          schema: { type: string }
+        - name: search
+          in: query
+          required: false
+          schema: { type: string }
+        - name: sort
+          in: query
+          required: false
+          schema: { type: string, enum: [rating, delivery_time, name, newest] }
+        - name: type
+          in: query
+          required: false
+          description: Filter by vendor type (restaurant or shop). Omit to return all.
+          schema: { type: string, enum: [restaurant, shop] }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 10 }
+      responses:
+        200:
+          description: List of active restaurants/shops retrieved successfully
+
+  /restaurant-owner/restaurants:
+    post:
+      tags: [RestaurantOwner]
+      summary: Onboard a new restaurant or shop (is_active defaults to false until approved)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: "Tikka Corner" }
+                type: { type: string, enum: [restaurant, shop], default: "restaurant", example: "shop" }
+                description: { type: string, example: "Fresh BBQ and karahi" }
+                address: { type: string, example: "Main Boulevard, Lahore" }
+                priceTier: { type: string, example: "$$" }
+                cuisineIds: { type: array, items: { type: integer }, example: [1, 2] }
+      responses:
+        201:
+          description: Vendor created in pending approval state (is_active = false)
+        400:
+          description: Owner already has a registered restaurant/shop
+
+  /restaurant-owner/restaurant:
+    get:
+      tags: [RestaurantOwner]
+      summary: Get logged-in owner's restaurant profile
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Owner's restaurant profile retrieved
+        404:
+          description: No restaurant found for this owner
+    patch:
+      tags: [RestaurantOwner]
+      summary: Update logged-in owner's restaurant profile
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Restaurant profile updated
+
+
