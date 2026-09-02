@@ -87,6 +87,24 @@ try {
   console.warn("Swagger document failed to load:", err.message);
 }
 
+// Root Endpoint
+app.get("/", (req, res) => {
+  return ApiResponse.success(
+    res,
+    {
+      name: "FoodMenia Backend API",
+      version: "1.0.0",
+      status: "operational",
+      endpoints: {
+        health: "/health",
+        docs: "/docs",
+        api: "/api/v1",
+      },
+    },
+    "Welcome to FoodMenia Production API"
+  );
+});
+
 // 6. Production Health Check Endpoint (DB Ping included)
 app.get("/health", async (req, res) => {
   let dbStatus = "connected";
