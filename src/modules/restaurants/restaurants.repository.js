@@ -1,11 +1,16 @@
 import { db } from "../../database/connection.js";
 
 export class RestaurantsRepository {
-  static async list({ cuisine, search, sort, type, page = 1, limit = 10 }) {
-    const offset = (page - 1) * limit;
+  static async list({ cuisine, search, sort, type, page = 1, limit = 100 }) {
+    const parsedLimit = Math.min(Number(limit) || 100, 200);
+    const parsedPage = Math.max(Number(page) || 1, 1);
+    const offset = (parsedPage - 1) * parsedLimit;
 
     let query = db("restaurants as r")
       .where("r.is_active", true)
+      .whereNot("r.name", "like", "Test Favorited Restaurant%")
+      .andWhereNot("r.name", "like", "Admin Gourmet Kitchen%")
+      .andWhereNot("r.name", "like", "Owner % Diner%")
       .select(
         "r.id",
         "r.name",
@@ -25,6 +30,9 @@ export class RestaurantsRepository {
 
     let countQuery = db("restaurants as r")
       .where("r.is_active", true)
+      .whereNot("r.name", "like", "Test Favorited Restaurant%")
+      .andWhereNot("r.name", "like", "Admin Gourmet Kitchen%")
+      .andWhereNot("r.name", "like", "Owner % Diner%")
       .count("r.id as total");
 
     if (type) {
@@ -65,11 +73,13 @@ export class RestaurantsRepository {
     } else if (sort === "name") {
       query = query.orderBy("r.name", "asc");
     } else {
-      query = query.orderBy("r.id", "desc");
+      query = query
+        .orderByRaw("CASE WHEN r.owner_id IS NOT NULL THEN 0 ELSE 1 END")
+        .orderBy("r.id", "desc");
     }
 
     const [items, totalResult] = await Promise.all([
-      query.limit(limit).offset(offset),
+      query.limit(parsedLimit).offset(offset),
       countQuery.first(),
     ]);
 
