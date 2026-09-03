@@ -87,12 +87,29 @@ const corsOptions = {
     "Authorization",
     "X-Requested-With",
     "Accept",
-    "x-idempotency-key",
     "Origin",
+    "idempotency-key",
+    "Idempotency-Key",
+    "x-idempotency-key",
+    "X-Idempotency-Key",
+    "Cache-Control",
+    "Pragma",
+    "Range",
+    "x-user-role",
+    "x-correlation-id",
   ],
-  exposedHeaders: ["Content-Range", "X-Content-Range"],
+  exposedHeaders: ["Content-Range", "X-Content-Range", "X-Total-Count", "X-Cache-Lookup"],
   optionsSuccessStatus: 200,
 };
+
+// Preflight hook: dynamically reflect any requested headers to guarantee no CORS rejection
+app.use((req, res, next) => {
+  const reqHeaders = req.headers["access-control-request-headers"];
+  if (reqHeaders) {
+    res.setHeader("Access-Control-Allow-Headers", reqHeaders);
+  }
+  next();
+});
 
 // Mount CORS before all other middlewares
 app.use(cors(corsOptions));
