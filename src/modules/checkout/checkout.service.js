@@ -60,11 +60,24 @@ export class CheckoutService {
     const total_before_discount = subtotal + tax_amount + delivery_fee + platform_fee;
     const finalTotal = Math.max(0, total_before_discount - discount_amount);
 
+    let platformCurrency = "USD ($)";
+    try {
+      const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+      const settings = await PlatformSettingsService.getSettings();
+      platformCurrency = settings.currency || "USD ($)";
+    } catch {
+      // Fallback
+    }
+
+    const activeCurrency = cart.restaurant?.currency || cart.totals?.currency || platformCurrency;
+
     return {
       restaurant: cart.restaurant,
       fulfillment_type: cart.fulfillment_type,
       items: cart.items,
+      currency: activeCurrency,
       totals: {
+        currency: activeCurrency,
         subtotal,
         tax_rate,
         tax_amount,

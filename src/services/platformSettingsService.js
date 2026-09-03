@@ -13,7 +13,7 @@ export class PlatformSettingsService {
         platform_fee_cents: env.FEES.PLATFORM_FEE_CENTS || 1999,
         default_delivery_fee_cents: env.FEES.DEFAULT_DELIVERY_FEE_CENTS || 4900,
         is_tax_enabled: true,
-        currency: "Rs.",
+        currency: "USD ($)",
       });
       settings = await db("platform_settings").where({ id: 1 }).first();
     }
@@ -29,7 +29,7 @@ export class PlatformSettingsService {
       default_delivery_fee_cents: defaultDeliveryFeeCents,
       default_delivery_fee: fromCents(defaultDeliveryFeeCents),
       is_tax_enabled: Boolean(settings.is_tax_enabled),
-      currency: settings.currency || "Rs.",
+      currency: settings.currency || "USD ($)",
       updated_at: settings.updated_at,
     };
   }

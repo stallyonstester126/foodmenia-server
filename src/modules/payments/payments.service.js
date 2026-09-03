@@ -168,6 +168,43 @@ export class PaymentsService {
     return { message: "Payment method deleted successfully." };
   }
 
+  static translateStripeError(stripeErr) {
+    const rawMsg = stripeErr?.message || "";
+    const code = stripeErr?.code || stripeErr?.decline_code;
+
+    if (
+      code === "amount_too_small" ||
+      rawMsg.toLowerCase().includes("convert to at least") ||
+      rawMsg.toLowerCase().includes("amount must convert") ||
+      rawMsg.toLowerCase().includes("at least 30 pence") ||
+      rawMsg.toLowerCase().includes("at least 50 cents")
+    ) {
+      return "Card payments require a minimum transaction amount ($0.50 / Rs. 120 bank gateway minimum). Please add items to your cart or choose Cash on Delivery.";
+    }
+
+    if (code === "card_declined") {
+      return "Your card was declined by your bank. Please use a different card or choose Cash on Delivery.";
+    }
+
+    if (code === "insufficient_funds") {
+      return "Your card has insufficient funds. Please use another card or choose Cash on Delivery.";
+    }
+
+    if (code === "expired_card") {
+      return "Your card has expired. Please use an active payment card.";
+    }
+
+    if (code === "incorrect_cvc") {
+      return "The card security code (CVC) is incorrect. Please check your card.";
+    }
+
+    if (code === "processing_error") {
+      return "The payment gateway encountered a temporary error. Please try again or choose Cash on Delivery.";
+    }
+
+    return rawMsg || "Card payment processing failed. Please try again or select Cash on Delivery.";
+  }
+
   static async processOrderPayment(order, paymentMethod, customerId, trx = null, expectedAmountInCents = null) {
     const amountInCents = toCents(order.total);
 
@@ -187,9 +224,25 @@ export class PaymentsService {
 
     if (hasRealStripeKey() && paymentMethod.provider_payment_method_id !== "pm_mock") {
       try {
+        let stripeCurrency = "usd";
+        const rawCurr = String(order?.currency || "").toLowerCase();
+        if (rawCurr.includes("pkr") || rawCurr.includes("rs")) {
+          stripeCurrency = "pkr";
+        } else if (rawCurr.includes("gbp") || rawCurr.includes("£")) {
+          stripeCurrency = "gbp";
+        } else if (rawCurr.includes("eur") || rawCurr.includes("€")) {
+          stripeCurrency = "eur";
+        } else if (rawCurr.includes("aed")) {
+          stripeCurrency = "aed";
+        } else if (rawCurr.includes("cad")) {
+          stripeCurrency = "cad";
+        } else {
+          stripeCurrency = "usd";
+        }
+
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
-          currency: "pkr",
+          currency: stripeCurrency,
           customer: customerId,
           payment_method: paymentMethod.provider_payment_method_id,
           confirm: true,
@@ -221,8 +274,10 @@ export class PaymentsService {
         };
       } catch (stripeErr) {
         logger.error(`Stripe PaymentIntent processing error: ${stripeErr.message}`);
-        const error = new Error(stripeErr.message || "Payment processing failed via Stripe.");
+        const friendlyMessage = PaymentsService.translateStripeError(stripeErr);
+        const error = new Error(friendlyMessage);
         error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        error.code = stripeErr.code || "PAYMENT_GATEWAY_ERROR";
         throw error;
       }
     }

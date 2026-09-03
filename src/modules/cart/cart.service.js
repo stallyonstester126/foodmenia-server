@@ -24,9 +24,11 @@ export class CartService {
     }
 
     let feeOverrides = null;
+    let fallbackCurrency = "USD ($)";
     try {
       const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
       const settings = await PlatformSettingsService.getSettings();
+      fallbackCurrency = settings.currency || "USD ($)";
       feeOverrides = {
         platformFeeCents: settings.platform_fee_cents,
         taxRatePercent: settings.is_tax_enabled ? settings.tax_rate_percent : 0,
@@ -37,7 +39,9 @@ export class CartService {
       // Fallback to defaults if settings unavailable
     }
 
-    return calculateCartTotals(cart.items, cart.fulfillment_type || "delivery", null, null, feeOverrides);
+    const calculated = calculateCartTotals(cart.items, cart.fulfillment_type || "delivery", null, null, feeOverrides);
+    calculated.currency = cart.restaurant?.currency || fallbackCurrency;
+    return calculated;
   }
 
   static async getCart(userId) {
@@ -46,6 +50,7 @@ export class CartService {
 
     return {
       ...cart,
+      currency: cart?.restaurant?.currency || totals.currency,
       totals,
     };
   }

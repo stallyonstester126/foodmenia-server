@@ -61,19 +61,36 @@ export class OrdersService {
 
       // 3. Validate Payment Method
       let resolvedPaymentMethod = null;
-      let resolvedPaymentMethodId = payment_method_id && !isNaN(Number(payment_method_id)) ? Number(payment_method_id) : null;
-      if (!resolvedPaymentMethodId) {
-        const defaultPM = await trx("payment_methods").where({ user_id: userId, is_default: true }).first();
-        if (!defaultPM) {
-          const anyPM = await trx("payment_methods").where({ user_id: userId }).first();
-          resolvedPaymentMethodId = anyPM ? anyPM.id : null;
-          resolvedPaymentMethod = anyPM;
-        } else {
-          resolvedPaymentMethodId = defaultPM.id;
-          resolvedPaymentMethod = defaultPM;
+      let resolvedPaymentMethodId = null;
+
+      const isCodRequested =
+        payment_method_id === "cod" ||
+        payment_method_id === "cash" ||
+        payment_method_id === "cash_on_delivery" ||
+        String(payment_method_id).toLowerCase() === "cod";
+
+      if (isCodRequested) {
+        resolvedPaymentMethod = { type: "cod", provider: "Cash on Delivery" };
+        resolvedPaymentMethodId = null;
+      } else if (payment_method_id && !isNaN(Number(payment_method_id))) {
+        resolvedPaymentMethodId = Number(payment_method_id);
+        resolvedPaymentMethod = await trx("payment_methods")
+          .where({ id: resolvedPaymentMethodId, user_id: userId })
+          .first();
+        if (!resolvedPaymentMethod) {
+          // If specified card not found, fallback safely to Cash on Delivery
+          resolvedPaymentMethod = { type: "cod", provider: "Cash on Delivery" };
+          resolvedPaymentMethodId = null;
         }
       } else {
-        resolvedPaymentMethod = await trx("payment_methods").where({ id: resolvedPaymentMethodId, user_id: userId }).first();
+        const defaultPM = await trx("payment_methods").where({ user_id: userId, is_default: true }).first();
+        if (defaultPM) {
+          resolvedPaymentMethodId = defaultPM.id;
+          resolvedPaymentMethod = defaultPM;
+        } else {
+          resolvedPaymentMethod = { type: "cod", provider: "Cash on Delivery" };
+          resolvedPaymentMethodId = null;
+        }
       }
 
       // 4. Validate Voucher (if provided) & Compute Authoritative Order Totals
@@ -126,7 +143,12 @@ export class OrdersService {
         const customerId = await PaymentsService.getOrCreateStripeCustomer(userId, trx);
 
         const paymentResult = await PaymentsService.processOrderPayment(
-          { id: "pending", total: finalTotal, user_id: userId },
+          {
+            id: "pending",
+            total: finalTotal,
+            user_id: userId,
+            currency: cart?.restaurant?.currency || "USD ($)",
+          },
           resolvedPaymentMethod,
           customerId,
           trx,

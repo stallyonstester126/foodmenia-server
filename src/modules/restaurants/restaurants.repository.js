@@ -19,6 +19,7 @@ export class RestaurantsRepository {
         "r.price_tier",
         "r.delivery_time_min",
         "r.delivery_time_max",
+        "r.currency",
         "r.created_at"
       );
 

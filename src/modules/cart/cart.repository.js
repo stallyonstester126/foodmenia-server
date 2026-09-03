@@ -23,7 +23,7 @@ export class CartRepository {
     if (cart.restaurant_id) {
       restaurant = await q()("restaurants")
         .where({ id: cart.restaurant_id })
-        .select("id", "name", "profile_image_url", "cover_image_url", "address", "rating", "delivery_time_min", "delivery_time_max")
+        .select("id", "name", "profile_image_url", "cover_image_url", "address", "rating", "delivery_time_min", "delivery_time_max", "currency")
         .first();
     }
 
