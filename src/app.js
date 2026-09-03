@@ -39,22 +39,30 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // 1. Security Middlewares & Explicit CORS Handlers
+const rawAllowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3002",
+      "https://foodmenia-client-xkie-pi.vercel.app",
+      "https://foodmenia-rider.vercel.app",
+      "https://foodmenia-admin.vercel.app",
+    ];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    );
-    res.setHeader(
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.header(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, X-Requested-With, Accept, x-idempotency-key"
     );
   }
   if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
+    return res.status(200).end();
   }
   next();
 });
@@ -67,22 +75,13 @@ app.use(
 );
 app.use(hpp());
 
-const allowedOriginsList = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:3002",
-  "https://foodmenia-client-xkie-pi.vercel.app",
-  "https://foodmenia-rider.vercel.app",
-  "https://foodmenia-admin.vercel.app",
-];
-
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (
-      allowedOriginsList.includes(origin) ||
-      env.ALLOWED_ORIGINS.includes(origin) ||
+      rawAllowedOrigins.includes(origin) ||
       (typeof origin === "string" && origin.endsWith(".vercel.app")) ||
+      env.ALLOWED_ORIGINS.includes(origin) ||
       env.NODE_ENV === "development"
     ) {
       return callback(null, true);
