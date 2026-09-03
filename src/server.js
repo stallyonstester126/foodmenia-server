@@ -8,9 +8,6 @@ import { logger } from "./utils/logger.js";
 
 const startServer = async () => {
   try {
-    // Verify Database Connection
-    await testDbConnection();
-
     // Create HTTP Server for Express & Socket.IO
     const server = http.createServer(app);
 
@@ -18,14 +15,15 @@ const startServer = async () => {
     initSocket(server);
     logger.info("🔌 Socket.IO Server initialized for live order tracking.");
 
-
-
-    server.listen(env.PORT, () => {
+    server.listen(env.PORT, "0.0.0.0", async () => {
       logger.info(`🚀 Foodmenia Backend Server running on port ${env.PORT} [${env.NODE_ENV}]`);
       logger.info(`👉 API Base URL: http://localhost:${env.PORT}/api/v1`);
       logger.info(`👉 Swagger Docs: http://localhost:${env.PORT}/docs`);
       logger.info(`👉 Health Check: http://localhost:${env.PORT}/health`);
       logger.info(`👉 Live Tracking WebSocket: ws://localhost:${env.PORT}`);
+
+      // Verify Database Connection
+      await testDbConnection();
     });
 
     // Graceful Shutdown Handler
