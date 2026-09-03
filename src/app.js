@@ -38,35 +38,49 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// 1. Security Middlewares & Explicit CORS Handlers
-const rawAllowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:3002",
-      "https://foodmenia-client-xkie-pi.vercel.app",
-      "https://foodmenia-rider.vercel.app",
-      "https://foodmenia-admin.vercel.app",
-    ];
+// 1. CORS Configuration (Reading directly from ALLOWED_ORIGINS environment variable)
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS ||
+  "http://localhost:3000,http://localhost:3001,http://localhost:3002,https://foodmenia-client-xkie-pi.vercel.app,https://foodmenia-rider.vercel.app,https://foodmenia-admin.vercel.app"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Requested-With, Accept, x-idempotency-key"
-    );
-  }
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-  next();
-});
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser clients (curl, Postman, mobile apps)
+    if (!origin) return callback(null, true);
 
+    const isWhitelisted =
+      allowedOrigins.includes(origin) ||
+      (typeof origin === "string" && origin.endsWith(".vercel.app")) ||
+      process.env.NODE_ENV === "development";
+
+    if (isWhitelisted) {
+      return callback(null, true);
+    }
+
+    logger.warn(`CORS blocked request from origin: ${origin}`);
+    return callback(new Error(`CORS policy does not allow access from origin ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "x-idempotency-key",
+  ],
+  optionsSuccessStatus: 200,
+};
+
+// Mount CORS before all other middlewares
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+// 2. Security Middlewares
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -74,27 +88,6 @@ app.use(
   })
 );
 app.use(hpp());
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (
-      rawAllowedOrigins.includes(origin) ||
-      (typeof origin === "string" && origin.endsWith(".vercel.app")) ||
-      env.ALLOWED_ORIGINS.includes(origin) ||
-      env.NODE_ENV === "development"
-    ) {
-      return callback(null, true);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-idempotency-key"],
-};
-
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 
 // 2. Body Parsers (with raw body buffer preserved for Stripe webhook signatures)
 app.use(
