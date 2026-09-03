@@ -2,18 +2,26 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const getConnection = () => {
-  if (process.env.MYSQL_URL || process.env.DATABASE_URL) {
-    return process.env.MYSQL_URL || process.env.DATABASE_URL;
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.MYSQL_URL ||
+    process.env.MYSQLPRIVATEURL ||
+    process.env.MYSQLPUBLICURL ||
+    process.env.MYSQL_PRIVATE_URL ||
+    process.env.MYSQL_PUBLIC_URL;
+
+  if (url) {
+    return url;
   }
 
   return {
-    host: process.env.DB_HOST || process.env.MYSQLHOST || "localhost",
-    port: Number(process.env.DB_PORT || process.env.MYSQLPORT) || 3306,
-    user: process.env.DB_USER || process.env.MYSQLUSER || "root",
-    password: process.env.DB_PASS || process.env.MYSQLPASSWORD || "",
-    database: process.env.DB_NAME || process.env.MYSQLDATABASE || "foodmenia",
+    host: process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST || "localhost",
+    port: Number(process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT) || 3306,
+    user: process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || "root",
+    password: process.env.DB_PASS || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || "",
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || "foodmenia",
     charset: "utf8mb4",
-    ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
+    ssl: (process.env.DB_SSL === "true" || process.env.MYSQL_SSL === "true") ? { rejectUnauthorized: false } : false,
   };
 };
 
