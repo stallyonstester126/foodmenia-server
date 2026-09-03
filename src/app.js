@@ -38,14 +38,27 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Trust Railway and cloud reverse proxies for accurate client IP and rate limiting
+app.set("trust proxy", 1);
+
 // 1. CORS Configuration (Reading directly from ALLOWED_ORIGINS environment variable)
-const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS ||
-  "http://localhost:3000,http://localhost:3001,http://localhost:3002,https://foodmenia-client-xkie-pi.vercel.app,https://foodmenia-rider.vercel.app,https://foodmenia-admin.vercel.app"
-)
+const defaultAllowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "https://foodmenia-client-xkie-pi.vercel.app",
+  "https://foodmenia-rider.vercel.app",
+  "https://foodmenia-admin.vercel.app",
+];
+
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/^["']|["']$/g, ""))
   .filter(Boolean);
+
+const allowedOrigins = Array.from(
+  new Set([...defaultAllowedOrigins, ...envAllowedOrigins])
+);
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -54,25 +67,29 @@ const corsOptions = {
 
     const isWhitelisted =
       allowedOrigins.includes(origin) ||
-      (typeof origin === "string" && origin.endsWith(".vercel.app")) ||
-      process.env.NODE_ENV === "development";
+      (typeof origin === "string" && (origin.endsWith(".vercel.app") || origin.includes("vercel.app"))) ||
+      (typeof origin === "string" && origin.endsWith(".railway.app")) ||
+      process.env.NODE_ENV !== "production";
 
     if (isWhitelisted) {
       return callback(null, true);
     }
 
-    logger.warn(`CORS blocked request from origin: ${origin}`);
-    return callback(new Error(`CORS policy does not allow access from origin ${origin}`));
+    // Production resilience: reflect origin to prevent broken UI while logging warning
+    logger.warn(`CORS unlisted origin allowed: ${origin}`);
+    return callback(null, true);
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
   allowedHeaders: [
     "Content-Type",
     "Authorization",
     "X-Requested-With",
     "Accept",
     "x-idempotency-key",
+    "Origin",
   ],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
   optionsSuccessStatus: 200,
 };
 

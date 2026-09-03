@@ -5,9 +5,10 @@ import { HTTP_STATUS } from "../config/constants.js";
 // Global API rate limiter
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // limit each IP to 300 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
   handler: (req, res) => {
     return ApiResponse.error(
       res,
@@ -20,9 +21,10 @@ export const globalRateLimiter = rateLimit({
 // Stricter rate limiter for Auth endpoints (login, register, forgot-password)
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 25, // limit each IP to 25 requests per windowMs
+  max: 100, // limit each IP to 100 auth attempts per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
   handler: (req, res) => {
     return ApiResponse.error(
       res,
