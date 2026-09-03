@@ -18,11 +18,16 @@ export class RiderService {
   }
 
   static async getRiderProfile(userId) {
-    const rider = await RiderRepository.findByUserId(userId);
+    let rider = await RiderRepository.findByUserId(userId);
     if (!rider) {
-      const error = new Error("Rider profile not found.");
-      error.statusCode = HTTP_STATUS.NOT_FOUND;
-      throw error;
+      const user = await AuthRepository.findById(userId);
+      if (user && user.role === "rider") {
+        rider = await RiderRepository.createRider(userId, "Motorbike", "N/A");
+      } else {
+        const error = new Error("Rider profile not found. Please log in with a registered Rider account.");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
+      }
     }
     return rider;
   }

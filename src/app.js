@@ -14,6 +14,7 @@ import { errorHandler } from "./middlewares/errorHandler.js";
 import { ApiResponse } from "./utils/apiResponse.js";
 import { HTTP_STATUS } from "./config/constants.js";
 import { db } from "./database/connection.js";
+import { logger } from "./utils/logger.js";
 
 // Routes
 import authRoutes from "./modules/auth/auth.routes.js";
