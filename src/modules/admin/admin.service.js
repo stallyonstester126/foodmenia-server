@@ -477,8 +477,195 @@ export class AdminService {
     return PaymentsService.refundOrder(orderId, amount, reason);
   }
 
+  // --- 4b. Orders Analytics & Restaurant Breakdown ---
+  static async getOrdersAnalytics({ restaurant_id, time_range = "all" } = {}) {
+    let dateFilter = null;
+    const now = new Date();
+    if (time_range === "today") {
+      dateFilter = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (time_range === "7d") {
+      dateFilter = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (time_range === "30d") {
+      dateFilter = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // 1. Overall platform stats query
+    let overallQuery = db("orders as o");
+    if (dateFilter) {
+      overallQuery = overallQuery.where("o.placed_at", ">=", dateFilter);
+    }
+    if (restaurant_id) {
+      overallQuery = overallQuery.where("o.restaurant_id", Number(restaurant_id));
+    }
+
+    const overallStats = await overallQuery
+      .select(
+        db.raw("COUNT(*) as total_orders"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total ELSE 0 END), 0) as total_revenue"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.subtotal ELSE 0 END), 0) as total_subtotal"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.platform_fee ELSE 0 END), 0) as total_platform_fees"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.tax_amount ELSE 0 END), 0) as total_tax_collected"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.delivery_fee ELSE 0 END), 0) as total_delivery_fees"),
+        db.raw("COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as delivered_count"),
+        db.raw("COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_count"),
+        db.raw("COUNT(CASE WHEN o.status IN ('placed', 'preparing', 'ready', 'delivering') THEN 1 END) as active_count")
+      )
+      .first();
+
+    const totalOrders = Number(overallStats?.total_orders || 0);
+    const totalRevenue = Number(overallStats?.total_revenue || 0);
+    const deliveredCount = Number(overallStats?.delivered_count || 0);
+    const cancelledCount = Number(overallStats?.cancelled_count || 0);
+    const activeCount = Number(overallStats?.active_count || 0);
+    const validOrdersCount = totalOrders - cancelledCount;
+    const avgOrderValue = validOrdersCount > 0 ? Number((totalRevenue / validOrdersCount).toFixed(2)) : 0;
+    const completionRate = totalOrders > 0 ? Number(((deliveredCount / totalOrders) * 100).toFixed(1)) : 0;
+
+    // 2. Per-restaurant breakdown
+    let restQuery = db("restaurants as r")
+      .leftJoin("orders as o", function () {
+        this.on("r.id", "=", "o.restaurant_id");
+        if (dateFilter) {
+          this.andOn("o.placed_at", ">=", db.raw("?", [dateFilter]));
+        }
+      })
+      .select(
+        "r.id as restaurant_id",
+        "r.name as restaurant_name",
+        "r.type",
+        "r.address",
+        "r.is_active",
+        "r.rating",
+        db.raw("COUNT(o.id) as orders_count"),
+        db.raw("COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total ELSE 0 END), 0) as gross_revenue"),
+        db.raw("COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as delivered_orders"),
+        db.raw("COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_orders"),
+        db.raw("COUNT(CASE WHEN o.status IN ('placed', 'preparing', 'ready', 'delivering') THEN 1 END) as active_orders")
+      )
+      .groupBy("r.id", "r.name", "r.type", "r.address", "r.is_active", "r.rating")
+      .orderBy("gross_revenue", "desc");
+
+    if (restaurant_id) {
+      restQuery = restQuery.where("r.id", Number(restaurant_id));
+    }
+
+    const restaurantRows = await restQuery;
+    const restaurantBreakdown = restaurantRows.map((r) => {
+      const oCount = Number(r.orders_count || 0);
+      const rev = Number(r.gross_revenue || 0);
+      const del = Number(r.delivered_orders || 0);
+      const cnl = Number(r.cancelled_orders || 0);
+      const act = Number(r.active_orders || 0);
+      const compRate = oCount > 0 ? Number(((del / oCount) * 100).toFixed(1)) : 0;
+      const aov = oCount - cnl > 0 ? Number((rev / (oCount - cnl)).toFixed(2)) : 0;
+
+      return {
+        restaurant_id: r.restaurant_id,
+        restaurant_name: r.restaurant_name,
+        type: r.type || "restaurant",
+        address: r.address,
+        is_active: Boolean(r.is_active),
+        rating: Number(r.rating || 0),
+        orders_count: oCount,
+        gross_revenue: rev,
+        avg_order_value: aov,
+        delivered_orders: del,
+        cancelled_orders: cnl,
+        active_orders: act,
+        completion_rate: compRate,
+      };
+    });
+
+    // 3. Status distribution
+    const statusCounts = {
+      placed: 0,
+      preparing: 0,
+      ready: 0,
+      delivering: 0,
+      delivered: deliveredCount,
+      cancelled: cancelledCount,
+    };
+
+    let statusDistQuery = db("orders as o");
+    if (dateFilter) {
+      statusDistQuery = statusDistQuery.where("o.placed_at", ">=", dateFilter);
+    }
+    if (restaurant_id) {
+      statusDistQuery = statusDistQuery.where("o.restaurant_id", Number(restaurant_id));
+    }
+    const distRows = await statusDistQuery.select("o.status", db.raw("COUNT(*) as count")).groupBy("o.status");
+    distRows.forEach((row) => {
+      if (statusCounts[row.status] !== undefined) {
+        statusCounts[row.status] = Number(row.count);
+      }
+    });
+
+    // 4. Recent orders feed (latest 20)
+    let recentQuery = db("orders as o")
+      .join("restaurants as r", "o.restaurant_id", "r.id")
+      .join("users as u", "o.user_id", "u.id")
+      .select(
+        "o.id",
+        "o.status",
+        "o.subtotal",
+        "o.tax_rate",
+        "o.tax_amount",
+        "o.delivery_fee",
+        "o.platform_fee",
+        "o.discount_amount",
+        "o.total",
+        "o.placed_at",
+        "r.id as restaurant_id",
+        "r.name as restaurant_name",
+        "u.id as user_id",
+        "u.name as user_name",
+        "u.email as user_email",
+        "o.rider_name"
+      )
+      .orderBy("o.placed_at", "desc")
+      .limit(20);
+
+    if (dateFilter) {
+      recentQuery = recentQuery.where("o.placed_at", ">=", dateFilter);
+    }
+    if (restaurant_id) {
+      recentQuery = recentQuery.where("o.restaurant_id", Number(restaurant_id));
+    }
+    const recentOrders = await recentQuery;
+
+    return {
+      overview: {
+        total_orders: totalOrders,
+        total_revenue: totalRevenue,
+        total_subtotal: Number(overallStats?.total_subtotal || 0),
+        total_platform_fees: Number(overallStats?.total_platform_fees || 0),
+        total_tax_collected: Number(overallStats?.total_tax_collected || 0),
+        total_delivery_fees: Number(overallStats?.total_delivery_fees || 0),
+        avg_order_value: avgOrderValue,
+        completion_rate: completionRate,
+        delivered_count: deliveredCount,
+        cancelled_count: cancelledCount,
+        active_count: activeCount,
+      },
+      status_distribution: statusCounts,
+      restaurants: restaurantBreakdown,
+      recent_orders: recentOrders,
+    };
+  }
+
+  // --- 4c. Platform Tax & Fees Configuration ---
+  static async getPlatformSettings() {
+    const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+    return PlatformSettingsService.getSettings();
+  }
+
+  static async updatePlatformSettings(data, user) {
+    const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+    return PlatformSettingsService.updateSettings(data, user?.id);
+  }
+
   // --- 5. Users Management (Super Admin) ---
-  static async listUsers({ search, role, page = 1, limit = 20 }) {
+  static async listUsers({ search, role, page = 1, limit = 50 } = {}) {
     const offset = (page - 1) * limit;
 
     let query = db("users").select("id", "name", "email", "phone", "role", "email_verified", "created_at");
@@ -487,11 +674,38 @@ export class AdminService {
       query = query.where((b) => b.whereILike("name", `%${search}%`).orWhereILike("email", `%${search}%`));
     }
 
-    if (role) {
+    if (role && role !== "all") {
       query = query.andWhere({ role });
     }
 
-    return query.limit(limit).offset(offset).orderBy("created_at", "desc");
+    const users = await query.limit(limit).offset(offset).orderBy("created_at", "desc");
+
+    // Fetch counts by role for dashboard counters
+    const counts = await db("users")
+      .select("role", db.raw("COUNT(*) as count"))
+      .groupBy("role");
+
+    const stats = {
+      total: 0,
+      customer: 0,
+      rider: 0,
+      restaurant_owner: 0,
+      admin: 0,
+    };
+
+    counts.forEach((c) => {
+      const cnt = Number(c.count);
+      stats.total += cnt;
+      if (stats[c.role] !== undefined) {
+        stats[c.role] = cnt;
+      }
+    });
+
+    return {
+      users,
+      stats,
+      total: stats.total,
+    };
   }
 
   static async updateUserRole(userId, newRole, requestingAdmin) {

@@ -6,7 +6,18 @@ import { updateSettingsSchema } from "./settings.validation.js";
 
 const router = Router();
 
-// Protect all settings routes
+// Public platform configuration route
+router.get("/platform", async (req, res, next) => {
+  try {
+    const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+    const settings = await PlatformSettingsService.getSettings();
+    return res.json({ success: true, data: settings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Protect all user settings routes
 router.use(authenticate);
 
 router.get("/", SettingsController.getSettings);

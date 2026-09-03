@@ -42,6 +42,8 @@ export class OrdersRepository {
         "o.fulfillment_type",
         "o.status",
         "o.subtotal",
+        "o.tax_rate",
+        "o.tax_amount",
         "o.delivery_fee",
         "o.platform_fee",
         "o.discount_amount",

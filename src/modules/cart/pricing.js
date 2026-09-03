@@ -6,7 +6,13 @@ import { env } from "../../config/env.js";
  *
  * All financial calculations use integer cents to guarantee 100% precision.
  */
-export function calculateCartTotals(cartItems = [], fulfillmentType = "delivery", voucher = null, deliveryFeeOverride = null) {
+export function calculateCartTotals(
+  cartItems = [],
+  fulfillmentType = "delivery",
+  voucher = null,
+  deliveryFeeOverride = null,
+  feeOverrides = null
+) {
   // 1. Calculate items subtotal in integer cents
   let subtotalCents = 0;
 
@@ -26,13 +32,18 @@ export function calculateCartTotals(cartItems = [], fulfillmentType = "delivery"
     subtotalCents += itemTotalCents;
   }
 
-  // 2. Delivery & Platform Fees in Cents
+  // 2. Delivery, Platform Fees & Tax in Cents
   const defaultDeliveryCents = deliveryFeeOverride !== null && deliveryFeeOverride !== undefined
     ? toCents(deliveryFeeOverride)
-    : env.FEES.DEFAULT_DELIVERY_FEE_CENTS;
+    : (feeOverrides?.defaultDeliveryFeeCents ?? env.FEES.DEFAULT_DELIVERY_FEE_CENTS);
 
   const deliveryFeeCents = fulfillmentType === "pickup" ? 0 : defaultDeliveryCents;
-  const platformFeeCents = env.FEES.PLATFORM_FEE_CENTS;
+  const platformFeeCents = feeOverrides?.platformFeeCents ?? env.FEES.PLATFORM_FEE_CENTS;
+
+  // Tax calculation
+  const taxRatePercent = feeOverrides?.taxRatePercent !== undefined ? Number(feeOverrides.taxRatePercent) : 0;
+  const isTaxEnabled = feeOverrides?.isTaxEnabled !== undefined ? Boolean(feeOverrides.isTaxEnabled) : true;
+  const taxAmountCents = isTaxEnabled && taxRatePercent > 0 ? Math.round(subtotalCents * (taxRatePercent / 100)) : 0;
 
   // 3. Voucher Discount in Cents
   let discountCents = 0;
@@ -66,11 +77,13 @@ export function calculateCartTotals(cartItems = [], fulfillmentType = "delivery"
   }
 
   // 4. Final Total in Cents
-  const preDiscountTotalCents = subtotalCents + deliveryFeeCents + platformFeeCents;
+  const preDiscountTotalCents = subtotalCents + taxAmountCents + deliveryFeeCents + platformFeeCents;
   const grandTotalCents = Math.max(0, preDiscountTotalCents - discountCents);
 
   return {
     subtotalCents,
+    taxAmountCents,
+    taxRatePercent,
     deliveryFeeCents,
     platformFeeCents,
     discountCents,
@@ -78,6 +91,9 @@ export function calculateCartTotals(cartItems = [], fulfillmentType = "delivery"
 
     // Decimal outputs for API responses / DB persistence
     subtotal: fromCents(subtotalCents),
+    tax_amount: fromCents(taxAmountCents),
+    tax: fromCents(taxAmountCents),
+    tax_rate: taxRatePercent,
     delivery_fee: fromCents(deliveryFeeCents),
     platform_fee: fromCents(platformFeeCents),
     discount_amount: fromCents(discountCents),

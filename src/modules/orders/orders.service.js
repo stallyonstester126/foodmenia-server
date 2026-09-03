@@ -89,10 +89,26 @@ export class OrdersService {
         voucherObj = voucherRes.voucher;
       }
 
+      let feeOverrides = null;
+      try {
+        const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+        const settings = await PlatformSettingsService.getSettings();
+        feeOverrides = {
+          platformFeeCents: settings.platform_fee_cents,
+          taxRatePercent: settings.is_tax_enabled ? settings.tax_rate_percent : 0,
+          isTaxEnabled: settings.is_tax_enabled,
+          defaultDeliveryFeeCents: settings.default_delivery_fee_cents,
+        };
+      } catch {
+        // Fallback to default
+      }
+
       const pricing = calculateCartTotals(
         cart.items,
         cart.fulfillment_type || "delivery",
-        voucherObj
+        voucherObj,
+        null,
+        feeOverrides
       );
 
       const voucherId = voucherObj?.id || null;
@@ -134,6 +150,8 @@ export class OrdersService {
           fulfillment_type: cart.fulfillment_type,
           status: "preparing",
           subtotal: pricing.subtotal,
+          tax_rate: pricing.tax_rate,
+          tax_amount: pricing.tax_amount,
           delivery_fee: pricing.delivery_fee,
           platform_fee: pricing.platform_fee,
           discount_amount: discountAmount,

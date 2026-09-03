@@ -109,6 +109,11 @@ router.get(
 
 // 3. Orders Management (Admin & Restaurant Owner)
 router.get(
+  "/orders/analytics",
+  requireRole("admin", "restaurant_owner"),
+  AdminController.getOrdersAnalytics
+);
+router.get(
   "/orders",
   requireRole("admin", "restaurant_owner"),
   AdminController.listOrders
@@ -130,6 +135,18 @@ router.post(
   idempotency(),
   validate(refundOrderSchema),
   AdminController.refundOrder
+);
+
+// 3b. Platform Tax & Fees Configuration (Admin Only)
+router.get(
+  "/platform-settings",
+  requireRole("admin"),
+  AdminController.getPlatformSettings
+);
+router.patch(
+  "/platform-settings",
+  requireRole("admin"),
+  AdminController.updatePlatformSettings
 );
 
 // 4. Users Management (Super Admin Only)

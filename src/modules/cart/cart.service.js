@@ -4,27 +4,45 @@ import { HTTP_STATUS } from "../../config/constants.js";
 import { calculateCartTotals } from "./pricing.js";
 
 export class CartService {
-  static computeTotals(cart) {
+  static async computeTotals(cart) {
     if (!cart || !cart.items || cart.items.length === 0) {
       return {
         subtotal: 0.00,
+        tax_amount: 0.00,
+        tax: 0.00,
+        tax_rate: 0,
         delivery_fee: 0.00,
         platform_fee: 0.00,
         total: 0.00,
         item_count: 0,
         subtotalCents: 0,
+        taxAmountCents: 0,
         deliveryFeeCents: 0,
         platformFeeCents: 0,
         grandTotalCents: 0,
       };
     }
 
-    return calculateCartTotals(cart.items, cart.fulfillment_type || "delivery");
+    let feeOverrides = null;
+    try {
+      const { PlatformSettingsService } = await import("../../services/platformSettingsService.js");
+      const settings = await PlatformSettingsService.getSettings();
+      feeOverrides = {
+        platformFeeCents: settings.platform_fee_cents,
+        taxRatePercent: settings.is_tax_enabled ? settings.tax_rate_percent : 0,
+        isTaxEnabled: settings.is_tax_enabled,
+        defaultDeliveryFeeCents: settings.default_delivery_fee_cents,
+      };
+    } catch {
+      // Fallback to defaults if settings unavailable
+    }
+
+    return calculateCartTotals(cart.items, cart.fulfillment_type || "delivery", null, null, feeOverrides);
   }
 
   static async getCart(userId) {
     const cart = await CartRepository.getCartWithItems(userId);
-    const totals = this.computeTotals(cart);
+    const totals = await this.computeTotals(cart);
 
     return {
       ...cart,

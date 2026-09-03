@@ -133,6 +133,24 @@ export class AdminController {
     return ApiResponse.success(res, result, result.message, HTTP_STATUS.OK);
   });
 
+  // Orders Analytics
+  static getOrdersAnalytics = asyncHandler(async (req, res) => {
+    const { restaurant_id, time_range } = req.query;
+    const analytics = await AdminService.getOrdersAnalytics({ restaurant_id, time_range });
+    return ApiResponse.success(res, analytics, "Orders analytics retrieved successfully.", HTTP_STATUS.OK);
+  });
+
+  // Platform Tax & Fees Configuration
+  static getPlatformSettings = asyncHandler(async (req, res) => {
+    const settings = await AdminService.getPlatformSettings();
+    return ApiResponse.success(res, settings, "Platform settings retrieved successfully.", HTTP_STATUS.OK);
+  });
+
+  static updatePlatformSettings = asyncHandler(async (req, res) => {
+    const settings = await AdminService.updatePlatformSettings(req.body, req.user);
+    return ApiResponse.success(res, settings, "Platform settings updated successfully.", HTTP_STATUS.OK);
+  });
+
   // Users
   static listUsers = asyncHandler(async (req, res) => {
     const users = await AdminService.listUsers(req.query);

@@ -52,10 +52,12 @@ export class CheckoutService {
     }
 
     const subtotal = cart.totals.subtotal;
+    const tax_rate = cart.totals.tax_rate ?? 0;
+    const tax_amount = cart.totals.tax_amount ?? 0;
     const delivery_fee = cart.totals.delivery_fee;
     const platform_fee = cart.totals.platform_fee;
     const discount_amount = discountInfo.discount_amount;
-    const total_before_discount = subtotal + delivery_fee + platform_fee;
+    const total_before_discount = subtotal + tax_amount + delivery_fee + platform_fee;
     const finalTotal = Math.max(0, total_before_discount - discount_amount);
 
     return {
@@ -64,6 +66,9 @@ export class CheckoutService {
       items: cart.items,
       totals: {
         subtotal,
+        tax_rate,
+        tax_amount,
+        tax: tax_amount,
         delivery_fee,
         platform_fee,
         total_before_discount: Number(total_before_discount.toFixed(2)),
