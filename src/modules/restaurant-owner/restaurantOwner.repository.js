@@ -37,20 +37,63 @@ export class RestaurantOwnerRepository {
       is_active: false, // Must be false until approved by an admin
     });
 
-    const cuisineIds = data.cuisineIds || data.cuisine_ids || [];
-    if (cuisineIds.length > 0) {
-      const validCuisines = await db("cuisines").whereIn("id", cuisineIds).select("id");
-      const validIds = validCuisines.map((c) => c.id);
-      if (validIds.length > 0) {
-        const links = validIds.map((cid) => ({
-          restaurant_id: id,
-          cuisine_id: cid,
-        }));
-        await db("restaurant_cuisines").insert(links);
-      }
+    const rawCuisines = data.cuisineIds || data.cuisine_ids || data.cuisines;
+    if (rawCuisines && Array.isArray(rawCuisines)) {
+      await this.resolveAndLinkCuisines(id, rawCuisines);
     }
 
     return this.findRestaurantByOwnerId(ownerId);
+  }
+
+  static async resolveAndLinkCuisines(restaurantId, rawCuisines) {
+    if (!rawCuisines || !Array.isArray(rawCuisines)) return;
+
+    await db("restaurant_cuisines").where({ restaurant_id: restaurantId }).delete();
+
+    if (rawCuisines.length === 0) return;
+
+    const numericIds = [];
+    const nameLookups = [];
+
+    for (const item of rawCuisines) {
+      if (typeof item === "number") {
+        numericIds.push(item);
+      } else if (typeof item === "string") {
+        const parsed = Number(item);
+        if (!isNaN(parsed) && parsed > 0) {
+          numericIds.push(parsed);
+        } else if (item.trim()) {
+          nameLookups.push(item.trim());
+        }
+      } else if (item && typeof item === "object") {
+        const objId = Number(item.id || item.cuisine_id);
+        if (!isNaN(objId) && objId > 0) {
+          numericIds.push(objId);
+        } else if (item.name && typeof item.name === "string") {
+          nameLookups.push(item.name.trim());
+        }
+      }
+    }
+
+    const foundCuisines = await db("cuisines")
+      .where(function () {
+        if (numericIds.length > 0) {
+          this.whereIn("id", numericIds);
+        }
+        if (nameLookups.length > 0) {
+          this.orWhereIn("name", nameLookups);
+        }
+      })
+      .select("id");
+
+    const distinctIds = [...new Set(foundCuisines.map((c) => c.id))];
+    if (distinctIds.length > 0) {
+      const links = distinctIds.map((cid) => ({
+        restaurant_id: restaurantId,
+        cuisine_id: cid,
+      }));
+      await db("restaurant_cuisines").insert(links);
+    }
   }
 
   static async updateRestaurant(ownerId, data) {
@@ -78,20 +121,9 @@ export class RestaurantOwnerRepository {
       await db("restaurants").where({ id: restaurant.id }).update(updatePayload);
     }
 
-    const cuisineIds = data.cuisineIds || data.cuisine_ids;
-    if (cuisineIds && Array.isArray(cuisineIds)) {
-      await db("restaurant_cuisines").where({ restaurant_id: restaurant.id }).delete();
-      if (cuisineIds.length > 0) {
-        const validCuisines = await db("cuisines").whereIn("id", cuisineIds).select("id");
-        const validIds = validCuisines.map((c) => c.id);
-        if (validIds.length > 0) {
-          const links = validIds.map((cid) => ({
-            restaurant_id: restaurant.id,
-            cuisine_id: cid,
-          }));
-          await db("restaurant_cuisines").insert(links);
-        }
-      }
+    const rawCuisines = data.cuisineIds || data.cuisine_ids || data.cuisines;
+    if (rawCuisines && Array.isArray(rawCuisines)) {
+      await this.resolveAndLinkCuisines(restaurant.id, rawCuisines);
     }
 
     return this.findRestaurantByOwnerId(ownerId);
