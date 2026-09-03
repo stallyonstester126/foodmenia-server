@@ -39,25 +39,43 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // 1. Security Middlewares
-app.use(helmet());
-app.use(hpp());
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (
-        !origin ||
-        env.ALLOWED_ORIGINS.includes(origin) ||
-        origin.endsWith(".vercel.app") ||
-        env.NODE_ENV === "development"
-      ) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked for origin ${origin}`));
-      }
-    },
-    credentials: true,
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false,
   })
 );
+app.use(hpp());
+
+const allowedOriginsList = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "https://foodmenia-client-xkie-pi.vercel.app",
+  "https://foodmenia-rider.vercel.app",
+  "https://foodmenia-admin.vercel.app",
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOriginsList.includes(origin) ||
+      env.ALLOWED_ORIGINS.includes(origin) ||
+      (typeof origin === "string" && origin.endsWith(".vercel.app")) ||
+      env.NODE_ENV === "development"
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // 2. Body Parsers (with raw body buffer preserved for Stripe webhook signatures)
 app.use(
