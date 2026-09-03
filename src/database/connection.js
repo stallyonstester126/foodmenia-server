@@ -12,7 +12,11 @@ export const db = knex(config);
 export const testDbConnection = async () => {
   try {
     await db.raw("SELECT 1+1 AS result");
-    logger.info(`✅ Connected to MySQL database [${config.connection.database}] on host [${config.connection.host}]`);
+    const target =
+      typeof config.connection === "string"
+        ? "MySQL URL"
+        : `${config.connection?.database || "foodmenia"} on host [${config.connection?.host || "db"}]`;
+    logger.info(`✅ Connected to MySQL database [${target}]`);
     return true;
   } catch (error) {
     logger.error("❌ MySQL Database connection failed:", error.message);
