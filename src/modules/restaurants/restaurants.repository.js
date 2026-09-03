@@ -11,6 +11,7 @@ export class RestaurantsRepository {
       .whereNot("r.name", "like", "Test Favorited Restaurant%")
       .andWhereNot("r.name", "like", "Admin Gourmet Kitchen%")
       .andWhereNot("r.name", "like", "Owner % Diner%")
+      .andWhereNot("r.name", "like", "Al Basit%")
       .select(
         "r.id",
         "r.name",
@@ -33,6 +34,7 @@ export class RestaurantsRepository {
       .whereNot("r.name", "like", "Test Favorited Restaurant%")
       .andWhereNot("r.name", "like", "Admin Gourmet Kitchen%")
       .andWhereNot("r.name", "like", "Owner % Diner%")
+      .andWhereNot("r.name", "like", "Al Basit%")
       .count("r.id as total");
 
     if (type) {
